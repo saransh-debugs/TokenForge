@@ -1,0 +1,76 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.serviceName }}
+  labels: {{- include "engine.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicas }}
+  {{- end }}
+  selector:
+    matchLabels: {{- include "engine.selector" . | nindent 6 }}
+  template:
+    metadata:
+      labels: {{- include "engine.selector" . | nindent 8 }}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "{{ .Values.port }}"
+        prometheus.io/path: /metrics
+    spec:
+      terminationGracePeriodSeconds: 10
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: engine
+          image: {{ include "engine.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["tokenforge-mock-engine", "--port", "{{ .Values.port }}"]
+          ports:
+            - { name: http, containerPort: {{ .Values.port }} }
+          env:
+            - { name: MOCK_MODEL, value: {{ .Values.model | quote }} }
+            - { name: MOCK_TOKENIZER, value: {{ .Values.tokenizer | quote }} }
+            - { name: MOCK_ENABLE_FAULTS, value: {{ ternary "1" "0" .Values.enableFaults | quote }} }
+            - { name: MOCK_STARTUP_DELAY_S, value: {{ .Values.startupDelayS | quote }} }
+            - { name: MOCK_STALL_S, value: {{ .Values.progressProbe.stallSeconds | quote }} }
+            - { name: MOCK_MAX_NUM_SEQS, value: {{ .Values.engine.maxNumSeqs | quote }} }
+            - { name: MOCK_KV_BLOCKS, value: {{ .Values.engine.kvBlocks | quote }} }
+            - { name: MOCK_BLOCK_SIZE, value: {{ .Values.engine.blockSize | quote }} }
+            - { name: MOCK_MAX_MODEL_LEN, value: {{ .Values.engine.maxModelLen | quote }} }
+            - { name: MOCK_PREFILL_S_PER_TOKEN, value: {{ .Values.engine.prefillSPerToken | quote }} }
+            - { name: MOCK_TPOT_BASE_S, value: {{ .Values.engine.tpotBaseS | quote }} }
+            - { name: MOCK_TPOT_PER_SEQ_S, value: {{ .Values.engine.tpotPerSeqS | quote }} }
+          # Startup gates the other probes, so a slow cold start never trips liveness.
+          startupProbe:
+            httpGet: { path: /health, port: http }
+            periodSeconds: 2
+            failureThreshold: 150
+          readinessProbe:
+            httpGet: { path: /health, port: http }
+            periodSeconds: 2
+            failureThreshold: 1
+          # F12: alive means "not stuck", not "HTTP answers".
+          livenessProbe:
+            exec:
+              command:
+                - python
+                - -m
+                - tokenforge.serving.progress
+                - --metrics-url=http://127.0.0.1:{{ .Values.port }}/metrics
+                - --stall-seconds={{ .Values.progressProbe.stallSeconds }}
+                - --state=/tmp/progress.json
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 1
+          resources: {{- toYaml .Values.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - name: tmp
+          emptyDir: { medium: Memory, sizeLimit: 16Mi }

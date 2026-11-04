@@ -1,0 +1,19 @@
+# kind cluster for the CPU mock stack (M0) and the autoscaling logic tests (M5).
+# Node image pinned by digest; Kubernetes minor matches the k3s cluster on the L4 box.
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: tokenforge
+# Kubelet >= 1.35 refuses cgroup v1 hosts by default; allow them so the stack also comes up
+# on older CI/dev hosts. No effect on cgroup v2 hosts.
+kubeadmConfigPatches:
+  - |
+    kind: KubeletConfiguration
+    failCgroupV1: false
+nodes:
+  - role: control-plane
+    image: kindest/node:v1.36.4@sha256:099e049362a1526b2db71494e1947aae99bd16290d7c895f2b7ea312e3cbfaed
+    extraPortMappings:
+      - containerPort: 30080 # gateway NodePort
+        hostPort: 8080
+        listenAddress: "127.0.0.1"
+        protocol: TCP

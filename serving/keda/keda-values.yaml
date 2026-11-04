@@ -1,0 +1,4 @@
+# Values for the kedacore/keda chart (version pinned in infra/versions.lock).
+resources:
+  operator: { requests: { cpu: 50m, memory: 64Mi } }
+  metricServer: { requests: { cpu: 50m, memory: 64Mi } }

@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "gateway.name" . }}
+  labels: {{- include "gateway.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicas }}
+  selector:
+    matchLabels: {{- include "gateway.selector" . | nindent 6 }}
+  template:
+    metadata:
+      labels: {{- include "gateway.selector" . | nindent 8 }}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "{{ .Values.service.port }}"
+        prometheus.io/path: /metrics
+    spec:
+      terminationGracePeriodSeconds: 40
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: gateway
+          image: {{ include "gateway.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["tokenforge-gateway", "--port", "{{ .Values.service.port }}"]
+          ports:
+            - { name: http, containerPort: {{ .Values.service.port }} }
+          env:
+            - { name: TF_GW_ENGINE_URL, value: {{ .Values.engine.url | quote }} }
+            - { name: TF_GW_ENGINE_HEALTH_PATH, value: {{ .Values.engine.healthPath | quote }} }
+            - { name: TF_GW_ENGINE_WAITING_METRIC, value: {{ .Values.engine.waitingMetric | quote }} }
+            - { name: TF_GW_ENGINE_MODEL, value: {{ .Values.engine.model | quote }} }
+            - { name: TF_GW_SERVED_MODEL, value: {{ .Values.servedModel | quote }} }
+            - { name: TF_GW_TOKENIZER, value: {{ .Values.tokenizer | quote }} }
+            - { name: TF_GW_MAX_CONTEXT, value: {{ .Values.limits.maxContext | quote }} }
+            - { name: TF_GW_MAX_TOKENS_LIMIT, value: {{ .Values.limits.maxTokens | quote }} }
+            - { name: TF_GW_DEFAULT_MAX_TOKENS, value: {{ .Values.limits.defaultMaxTokens | quote }} }
+            - { name: TF_GW_MAX_BODY_BYTES, value: {{ .Values.limits.maxBodyBytes | quote }} }
+            - { name: TF_GW_MAX_INFLIGHT, value: {{ .Values.admission.maxInflight | quote }} }
+            - { name: TF_GW_MAX_QUEUE, value: {{ .Values.admission.maxQueue | quote }} }
+            - { name: TF_GW_WAITING_THRESHOLD, value: {{ .Values.admission.waitingThreshold | quote }} }
+            - { name: TF_GW_QUEUE_TIMEOUT_S, value: {{ .Values.admission.queueTimeoutS | quote }} }
+            - { name: TF_GW_RETRY_AFTER_S, value: {{ .Values.admission.retryAfterS | quote }} }
+            - { name: TF_GW_RETRIES, value: {{ .Values.admission.retriesBeforeFirstToken | quote }} }
+            - { name: TF_GW_CONNECT_TIMEOUT_S, value: {{ .Values.timeouts.connectS | quote }} }
+            - { name: TF_GW_READ_TIMEOUT_S, value: {{ .Values.timeouts.readS | quote }} }
+            - { name: TF_GW_WRITE_TIMEOUT_S, value: {{ .Values.timeouts.writeS | quote }} }
+          readinessProbe:
+            httpGet: { path: /health/ready, port: http }
+            periodSeconds: 2
+            failureThreshold: 2
+          livenessProbe:
+            httpGet: { path: /health/live, port: http }
+            periodSeconds: 10
+            failureThreshold: 3
+          resources: {{- toYaml .Values.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }

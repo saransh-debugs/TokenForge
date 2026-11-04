@@ -1,0 +1,20 @@
+{{- if .Values.autoscaling.enabled }}
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: {{ .Values.serviceName }}
+  labels: {{- include "engine.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    name: {{ .Values.serviceName }}
+  minReplicaCount: {{ .Values.autoscaling.minReplicas }}
+  maxReplicaCount: {{ .Values.autoscaling.maxReplicas }}
+  pollingInterval: {{ .Values.autoscaling.pollingInterval }}
+  cooldownPeriod: {{ .Values.autoscaling.cooldownPeriod }}
+  triggers:
+    - type: prometheus
+      metadata:
+        serverAddress: {{ .Values.autoscaling.prometheusAddress }}
+        query: {{ .Values.autoscaling.query | quote }}
+        threshold: {{ .Values.autoscaling.threshold | quote }}
+{{- end }}

@@ -1,0 +1,49 @@
+image:
+  repository: tokenforge/serving
+  tag: dev
+  digest: "" # set in production values; takes precedence over tag
+  pullPolicy: IfNotPresent
+
+replicas: 1
+
+service:
+  type: ClusterIP
+  port: 8080
+  nodePort: null
+
+engine:
+  url: http://tokenforge-engine:8000
+  healthPath: /health
+  waitingMetric: "vllm:num_requests_waiting"
+  model: qwen2.5-7b-instruct
+
+servedModel: qwen2.5-7b-instruct
+tokenizer: simple
+
+limits:
+  maxContext: 8192
+  maxTokens: 4096
+  defaultMaxTokens: 256
+  maxBodyBytes: 4194304
+
+admission:
+  maxInflight: 256
+  maxQueue: 512
+  waitingThreshold: 64
+  queueTimeoutS: 30
+  retryAfterS: 2
+  retriesBeforeFirstToken: 1
+
+timeouts:
+  connectS: 2
+  readS: 30
+  writeS: 10
+
+resources:
+  requests: { cpu: 250m, memory: 256Mi }
+  limits: { cpu: "2", memory: 1Gi }
+
+metrics:
+  serviceMonitor:
+    enabled: false
+    interval: 5s

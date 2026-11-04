@@ -1,0 +1,42 @@
+image:
+  repository: tokenforge/serving
+  tag: dev
+  digest: ""
+  pullPolicy: IfNotPresent
+
+# Service name the gateway points at (engine.url in the gateway chart).
+serviceName: tokenforge-engine
+port: 8000
+replicas: 1
+
+model: qwen2.5-7b-instruct
+tokenizer: simple
+enableFaults: true
+startupDelayS: 0
+
+engine:
+  maxNumSeqs: 64
+  kvBlocks: 4096
+  blockSize: 16
+  maxModelLen: 8192
+  prefillSPerToken: "2e-5"
+  tpotBaseS: "0.010"
+  tpotPerSeqS: "2e-4"
+
+progressProbe:
+  stallSeconds: 30
+
+resources:
+  requests: { cpu: 250m, memory: 256Mi }
+  limits: { cpu: "1", memory: 512Mi }
+
+# KEDA scales on queue depth (num_requests_waiting) scraped by Prometheus.
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 2
+  prometheusAddress: http://prometheus-server.monitoring.svc:80
+  query: sum(vllm:num_requests_waiting)
+  threshold: "8"
+  pollingInterval: 5
+  cooldownPeriod: 60

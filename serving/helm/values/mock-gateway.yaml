@@ -1,0 +1,7 @@
+# `make up` (mock stack in kind): gateway exposed on host port 8080 via NodePort 30080.
+service:
+  type: NodePort
+  nodePort: 30080
+engine:
+  url: http://tokenforge-engine:8000
+tokenizer: simple

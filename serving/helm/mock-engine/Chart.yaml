@@ -1,0 +1,6 @@
+apiVersion: v2
+name: tokenforge-mock-engine
+description: CPU mock of a continuous-batching engine with vLLM's API and metrics (ADR D5)
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

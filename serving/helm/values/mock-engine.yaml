@@ -1,0 +1,4 @@
+# `make up` (mock stack in kind).
+enableFaults: true
+engine:
+  maxNumSeqs: 32
