@@ -1,0 +1,20 @@
+{
+  "w4a16": {
+    "cpu": {
+      "c": 0.13,
+      "cases": 150,
+      "device_name": "x86_64",
+      "observed_max": 0.1245726352188545,
+      "suite": "cpu",
+      "torch": "2.14.0+cu130",
+      "vendor_gemm": "aten-cpu-fp16",
+      "worst_case": [
+        "n_ragged_small",
+        200,
+        256,
+        3,
+        1
+      ]
+    }
+  }
+}
