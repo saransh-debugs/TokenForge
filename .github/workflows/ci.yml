@@ -1,0 +1,114 @@
+# CPU tier: every push and PR, < 10 min. GPU tiers run off GitHub (Kaggle T4, rented L4)
+# and are enforced here through the committed GPU report (ADR 0008).
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  UV_FROZEN: "1"
+  TRITON_INTERPRET: "1"
+
+jobs:
+  python:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - name: Install (CPU torch, no CUDA wheels)
+        run: |
+          uv venv
+          uv export --extra kernels --extra serving --extra bench --group dev \
+            --no-emit-project --no-hashes --no-header \
+            | grep -vE '^(cuda-|torch==|nvidia-[a-ln-z])' > /tmp/req.txt  # keeps nvidia-ml-py
+          uv pip install --torch-backend cpu "torch==2.14.0"
+          uv pip install -r /tmp/req.txt
+          uv pip install --no-deps -e .
+      - name: ruff
+        run: |
+          uv run --no-sync ruff check .
+          uv run --no-sync ruff format --check .
+      - name: mypy
+        run: uv run --no-sync mypy
+      - name: pytest (unit, numerics under the Triton interpreter, gateway contract)
+        run: uv run --no-sync pytest -m "not gpu and not slow" --durations=15
+
+  infra:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.19.0
+      - name: kubeconform
+        run: |
+          curl -sSfL https://github.com/yannh/kubeconform/releases/download/v0.7.0/kubeconform-linux-amd64.tar.gz \
+            | tar xz -C /usr/local/bin kubeconform
+      - name: helm lint + kubeconform
+        run: make helm-lint
+      - name: shellcheck
+        run: shellcheck infra/*.sh
+      - uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: serving/docker/Dockerfile
+
+  kind:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    needs: [infra]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.19.0
+      - name: Install kind
+        run: |
+          curl -sSfL -o /usr/local/bin/kind https://github.com/kubernetes-sigs/kind/releases/download/v0.30.0/kind-linux-amd64
+          chmod +x /usr/local/bin/kind
+      - name: make up (mock stack) and smoke test
+        run: make up
+      - name: Upload make-up timing
+        uses: actions/upload-artifact@v4
+        with:
+          name: make-up-timing
+          path: bench/results/kind/make_up.jsonl
+
+  gpu-report:
+    # Kernel or plugin changes need a passing GPU-dev report for their exact content.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Did kernel/plugin code change?
+        id: changed
+        run: |
+          base="${{ github.event.pull_request.base.sha }}"
+          if git diff --quiet "$base" HEAD -- tokenforge/kernels vllm_plugin; then
+            echo "needed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "needed=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Verify GPU report for the PR head
+        if: steps.changed.outputs.needed == 'true'
+        run: PYTHONPATH=. python -m tokenforge.ci.gpu_report check --tier dev

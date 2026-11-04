@@ -14,13 +14,13 @@ COPY serving/docker/requirements.serving.txt /app/requirements.txt
 # Optional CA bundle for TLS-intercepting proxies: `--secret id=ca,src=<bundle>`.
 RUN --mount=type=secret,id=ca,required=false \
     if [ -f /run/secrets/ca ]; then export PIP_CERT=/run/secrets/ca; fi; \
-    pip install --no-deps -r /app/requirements.txt
+    pip install --no-cache-dir --no-deps -r /app/requirements.txt
 
 COPY pyproject.toml README.md /app/
 COPY tokenforge /app/tokenforge
 RUN --mount=type=secret,id=ca,required=false \
     if [ -f /run/secrets/ca ]; then export PIP_CERT=/run/secrets/ca; fi; \
-    pip install --no-deps /app
+    pip install --no-cache-dir --no-deps /app
 
 USER 65532:65532
 EXPOSE 8080
