@@ -1,0 +1,67 @@
+# TokenForge pinned versions. Pinned week 1 (2026-11-04).
+# Policy (docs/design.md, Engineering hygiene): one dependency per PR, a full GPU-full run,
+# and a before/after benchmark diff in the PR description.
+# Python packages for the CPU/dev environment are locked in uv.lock; this file pins the GPU
+# stack, containers and cluster components. "resolve-on-l4" marks values that are fetched
+# from registries this repo's CI cannot reach (nvcr.io); `make lock-images` fills them in on
+# the L4 box and `make lock-check` fails while any remain.
+
+schema = 1
+
+[python]
+version = "3.12"
+
+[engine_vllm]
+# vLLM 0.33.0 pins torch==2.14.0; torch 2.14.0 pins triton~=3.8.0.
+vllm = "0.33.0"
+torch = "2.14.0"
+triton = "3.8.0"
+transformers = "5.20.2"
+flashinfer-python = "0.7.2.post1"
+compressed-tensors = "0.17.0"
+# Supported range enforced by the plugin's version guard (F6).
+plugin_supported_range = ">=0.33.0,<0.34.0"
+
+[engine_trtllm]
+# Runs inside the Triton Inference Server TRT-LLM container.
+tensorrt-llm = "1.2.1"
+torch = "2.9.1"                         # tensorrt-llm 1.2.1 requires torch>=2.9.1,<=2.10.0a0
+triton = "3.5.1"
+transformers = "4.57.3"
+
+[models]
+model = "Qwen/Qwen2.5-7B-Instruct-AWQ"
+dev_model = "Qwen/Qwen2.5-0.5B-Instruct-AWQ"
+fp16_model = "Qwen/Qwen2.5-7B-Instruct"
+# Hugging Face commit SHAs are pinned at first download by `make models`.
+model_revision = "resolve-on-l4"
+dev_model_revision = "resolve-on-l4"
+fp16_model_revision = "resolve-on-l4"
+
+[containers]
+python_slim = "python:3.12-slim@sha256:b18b261e1b4974b4f321451ad5251ded85abb22c2b8b262da527dda1d031ab30"
+kind_node = "kindest/node:v1.36.4@sha256:099e049362a1526b2db71494e1947aae99bd16290d7c895f2b7ea312e3cbfaed"
+toxiproxy = "ghcr.io/shopify/toxiproxy:2.13.0"
+tritonserver_trtllm = "resolve-on-l4"   # nvcr.io/nvidia/tritonserver:<yy.mm>-trtllm-python-py3, TRT-LLM 1.2.1
+tritonserver_vllm = "resolve-on-l4"     # nvcr.io/nvidia/tritonserver:<yy.mm>-vllm-python-py3, vLLM 0.33.0
+vllm_openai = "resolve-on-l4"           # vllm/vllm-openai:v0.33.0
+dcgm_exporter = "resolve-on-l4"         # nvcr.io/nvidia/k8s/dcgm-exporter
+device_plugin = "resolve-on-l4"         # nvcr.io/nvidia/k8s-device-plugin
+
+[cluster]
+kubernetes_minor = "1.36"
+kind = "v0.30.0"
+k3s = "resolve-on-l4"                   # v1.36.x+k3s1
+
+[charts]
+prometheus = "29.40.3"                  # oci://ghcr.io/prometheus-community/charts/prometheus
+chaos_mesh = "v2.8.7"
+keda = "resolve-on-l4"
+
+[tools]
+helm = "v3.19.0"
+kubeconform = "v0.7.0"
+kubectl = "v1.36.4"
+uv = ">=0.9"
+ruff = "0.17.3"
+mypy = "2.4.1"
