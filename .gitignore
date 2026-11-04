@@ -1,0 +1,32 @@
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.hypothesis/
+.coverage
+htmlcov/
+
+# Kernel build outputs and profiler captures
+*.so
+*.ncu-rep
+*.nsys-rep
+*.qdrep
+/tmp/
+
+# Model weights, engines and datasets are fetched by script, never committed
+/models/
+/engines/
+/datasets/
+*.safetensors
+*.engine
+*.plan
+
+# Local secrets
+.env
+*.pem
+kubeconfig*
