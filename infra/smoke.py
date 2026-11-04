@@ -17,7 +17,7 @@ def _post(url: str, body: dict[str, object], timeout: float) -> tuple[int, bytes
         url, data=json.dumps(body).encode(), headers={"content-type": "application/json"}
     )
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
             return resp.status, resp.read()
     except urllib.error.HTTPError as exc:
         return exc.code, exc.read()
@@ -31,7 +31,7 @@ def main() -> int:
     deadline = time.monotonic() + args.timeout
     while True:
         try:
-            with urllib.request.urlopen(f"{args.url}/health/ready", timeout=2) as r:  # noqa: S310
+            with urllib.request.urlopen(f"{args.url}/health/ready", timeout=2) as r:
                 if r.status == 200:
                     break
         except OSError:
@@ -41,13 +41,17 @@ def main() -> int:
             return 1
         time.sleep(1)
 
-    status, body = _post(f"{args.url}/v1/completions",
-                         {"model": MODEL, "prompt": "smoke test", "max_tokens": 4}, 30)
+    status, body = _post(
+        f"{args.url}/v1/completions", {"model": MODEL, "prompt": "smoke test", "max_tokens": 4}, 30
+    )
     if status != 200 or json.loads(body)["usage"]["completion_tokens"] != 4:
         print(f"smoke: completion failed: {status} {body[:200]!r}", file=sys.stderr)
         return 1
-    status, body = _post(f"{args.url}/v1/completions",
-                         {"model": MODEL, "prompt": "smoke", "max_tokens": 4, "stream": True}, 30)
+    status, body = _post(
+        f"{args.url}/v1/completions",
+        {"model": MODEL, "prompt": "smoke", "max_tokens": 4, "stream": True},
+        30,
+    )
     events = [ln for ln in body.decode().splitlines() if ln.startswith("data: ")]
     if status != 200 or events[-1] != "data: [DONE]":
         print(f"smoke: stream failed: {status} {events[-2:]}", file=sys.stderr)
